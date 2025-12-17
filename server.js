@@ -25,6 +25,7 @@ app.use(helmet({
 }));
 app.use(cors());
 app.use(limiter);
+// Statik dosyaları sadece localde bu şekilde sunuyoruz. Vercel'de vercel.json halledecek.
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Axios Ayarları (Browser gibi görünmek için User-Agent ekliyoruz)
@@ -85,7 +86,13 @@ app.get('/api/message', async (req, res) => {
     }
 });
 
-app.listen(API_PORT, () => {
-    console.log(`🚀 GERÇEK Mail Servisi Çalışıyor: http://localhost:${API_PORT}`);
-    console.log(`🌍 Altyapı: 1secmail API`);
-});
+// Vercel için Export ediyoruz
+module.exports = app;
+
+// Localde çalışırken port dinle (Vercel'de bu kısım çalışmaz)
+if (require.main === module) {
+    app.listen(API_PORT, () => {
+        console.log(`🚀 GERÇEK Mail Servisi Çalışıyor: http://localhost:${API_PORT}`);
+        console.log(`🌍 Altyapı: 1secmail API`);
+    });
+}
