@@ -4,6 +4,8 @@ const { simpleParser } = require('mailparser');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const path = require('path');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 // --- KONFIGÜRASYON ---
 // Kullanılabilecek Domainler Listesi
@@ -19,7 +21,7 @@ const API_PORT = 3000;
 const SMTP_PORT = 2525; // Normalde 25 olur ama localde izin vermeyebilirler, test için 2525
 
 // --- VERİTABANI KURULUMU ---
-const db = new sqlite3.Database(':memory:'); // Test için RAM'de tutuyoruz. İstersen dosyaya çeviririz.
+const db = new sqlite3.Database(':memory:'); // Test için RAM'de tutuyoruz.
 
 db.serialize(() => {
     db.run(`CREATE TABLE emails (
@@ -33,6 +35,14 @@ db.serialize(() => {
         links TEXT,
         received_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
+});
+
+// --- GÜVENLİK VE LİMİTLEME ---
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 dakika
+    max: 100, // IP başına limit
+    standardHeaders: true,
+    legacyHeaders: false,
 });
 
 // --- YARDIMCI FONKSİYONLAR ---
@@ -50,6 +60,15 @@ function extractLinks(text) {
     const matches = text.match(regex);
     return matches ? matches : [];
 }
+
+// Otomatik Temizlik (Her 5 dakikada bir, 1 saatten eski mailleri sil)
+setInterval(() => {
+    db.run("DELETE FROM emails WHERE received_at < datetime('now', '-1 hour')", function (err) {
+        if (!err && this.changes > 0) {
+            console.log(`🧹 Temizlik: ${this.changes} eski mail silindi.`);
+        }
+    });
+}, 5 * 60 * 1000);
 
 // --- SMTP SUNUCUSU (Mail Alma Kısmı) ---
 const mailServer = new SMTPServer({
@@ -89,7 +108,11 @@ mailServer.listen(SMTP_PORT, () => {
 
 // --- WEB API SUNUCUSU (Frontend ve API) ---
 const app = express();
+app.use(helmet({
+    contentSecurityPolicy: false, // AdSense scriptlerinin çalışması için CSP kapatıldı veya ayarlanmalı. Şimdilik kapattık.
+}));
 app.use(cors());
+app.use(limiter);
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Rastgele Mail Üret (Random Domain Seçimi)
