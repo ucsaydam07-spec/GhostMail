@@ -804,30 +804,42 @@
 
                 // Domainleri yükle ve Select kutusuna koy
                 async function initDomains() {
+                    const fallbackDomains = ["1secmail.com", "1secmail.org", "1secmail.net", "esiix.com", "wwjmp.com"];
+                    const select = document.getElementById('domainSelect');
+
                     try {
                         const res = await fetch('/api/domains');
+                        if (!res.ok) throw new Error('API Error');
                         const domains = await res.json();
-                        const select = document.getElementById('domainSelect');
 
-                        select.innerHTML = domains.map(d => `<option value="${d}">@${d}</option>`).join('');
+                        populateSelect(domains);
+                    } catch (e) {
+                        console.error("Domain hatası (Fallback kullanılıyor)", e);
+                        // Hata olursa (Rate limit vs.) yedek listeyi kullan
+                        populateSelect(fallbackDomains);
+                    }
+                }
 
-                        // İlk açılışta rastgele bir tane seç
-                        const randomDomain = domains[Math.floor(Math.random() * domains.length)];
-                        select.value = randomDomain;
+                function populateSelect(domains) {
+                    const select = document.getElementById('domainSelect');
+                    select.innerHTML = domains.map(d => `<option value="${d}">@${d}</option>`).join('');
 
-                        // Domainler yüklendikten sonra mail oluştur
-                        if (!localStorage.getItem('ghostEmail')) {
-                            generateNewEmail();
-                        } else {
-                            // Eğer mail varsa, domaini de seçili hale getir
-                            const currentDomain = myEmail.split('@')[1];
-                            if (domains.includes(currentDomain)) {
-                                select.value = currentDomain;
-                            } else if (domains.length > 0) {
-                                select.value = domains[0]; // Fallback to first domain if current is not in list
-                            }
+                    // Varsa mevcut mailin domainini seç, yoksa ilkini
+                    if (myEmail && myEmail.includes('@')) {
+                        const currentDomain = myEmail.split('@')[1];
+                        if (domains.includes(currentDomain)) {
+                            select.value = currentDomain;
+                            return;
                         }
-                    } catch (e) { console.error("Domain hatası", e); }
+                    }
+
+                    // Mail yoksa veya domain listede yoksa rastgele seç
+                    const randomDomain = domains[Math.floor(Math.random() * domains.length)];
+                    select.value = randomDomain;
+
+                    if (!localStorage.getItem('ghostEmail')) {
+                        generateNewEmail();
+                    }
                 }
 
                 async function generateNewEmail() {
@@ -841,14 +853,30 @@
                             await initDomains();
                         }
 
-                        const selectedDomain = select.value;
+                        // Hâlâ boşsa zorlama, varsayılanı kullan
+                        let selectedDomain = select.value;
+                        if (!selectedDomain) {
+                            selectedDomain = "1secmail.com";
+                            select.value = selectedDomain;
+                            // Eğer select'te yoksa ekle
+                            if (select.selectedIndex === -1) {
+                                let opt = document.createElement('option');
+                                opt.value = selectedDomain;
+                                opt.innerHTML = '@' + selectedDomain;
+                                select.appendChild(opt);
+                                select.value = selectedDomain;
+                            }
+                        }
+
                         const randomUser = Math.random().toString(36).substring(2, 10);
 
                         myEmail = `${randomUser}@${selectedDomain}`;
                         saveAndRender(myEmail);
                     } catch (e) {
                         console.error(e);
-                        alert("Mail oluşturulamadı, lütfen tekrar dene.");
+                        // Hata olsa bile kullanıcıyı boş bırakma
+                        myEmail = `${Math.random().toString(36).substring(2, 10)}@1secmail.com`;
+                        saveAndRender(myEmail);
                     }
                 }
 
