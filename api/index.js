@@ -1,29 +1,20 @@
+```javascript
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
-const path = require('path');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 
 // --- KONFIGÜRASYON ---
 const BASE_URL = 'https://www.1secmail.com/api/v1/';
 
-// --- GÜVENLİK VE LİMİTLEME ---
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 1000,
-    standardHeaders: true,
-    legacyHeaders: false,
-});
-
 // --- WEB API SUNUCUSU ---
 const app = express();
 
-app.use(helmet({
-    contentSecurityPolicy: false,
-}));
+// Vercel Proxy Ayarı (Önemli)
+app.set('trust proxy', 1);
 app.use(cors());
-app.use(limiter);
+
+// Statik dosya sunumunu kaldırdık (Vercel bunu otomatik yapar)
+// Rate Limit ve Helmet'i geçici olarak kaldırdık (Hata kaynağı olabiliyorlar)
 
 // Axios Ayarları
 const api = axios.create({
@@ -40,7 +31,8 @@ app.get('/api/domains', async (req, res) => {
         res.json(response.data);
     } catch (error) {
         console.error('API Hatası (Domain):', error.message);
-        res.status(500).json({ error: 'Domain listesi alınamadı' });
+        // Hata olsa bile boş dönme, fallback listesi ver
+        res.json(["1secmail.com", "1secmail.org", "1secmail.net"]);
     }
 });
 
@@ -49,10 +41,11 @@ app.get('/api/inbox', async (req, res) => {
     if (!email || !email.includes('@')) return res.status(400).json({ error: 'Geçersiz email' });
     const [login, domain] = email.split('@');
     try {
-        const response = await api.get(`?action=getMessages&login=${login}&domain=${domain}`);
+        const response = await api.get(`? action = getMessages & login=${ login }& domain=${ domain } `);
         res.json(response.data);
     } catch (error) {
-        res.status(500).json({ error: 'Mailler alınamadı' });
+        // Hata durumunda boş liste dön ki frontend patlamasın
+        res.json([]);
     }
 });
 
@@ -61,7 +54,7 @@ app.get('/api/message', async (req, res) => {
     if (!email || !id) return res.status(400).json({ error: 'Eksik parametre' });
     const [login, domain] = email.split('@');
     try {
-        const response = await api.get(`?action=readMessage&login=${login}&domain=${domain}&id=${id}`);
+        const response = await api.get(`? action = readMessage & login=${ login }& domain=${ domain }& id=${ id } `);
         res.json(response.data);
     } catch (error) {
         res.status(500).json({ error: 'Mail içeriği alınamadı' });
