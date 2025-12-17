@@ -27,13 +27,22 @@ app.use(cors());
 app.use(limiter);
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Axios Ayarları (Browser gibi görünmek için User-Agent ekliyoruz)
+const api = axios.create({
+    baseURL: BASE_URL,
+    headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+});
+
 // 1. Mevcut Domainleri Getir
 app.get('/api/domains', async (req, res) => {
     try {
-        const response = await axios.get(`${BASE_URL}?action=getDomainList`);
+        const response = await api.get('?action=getDomainList');
         res.json(response.data);
     } catch (error) {
-        console.error('API Hatası:', error.message);
+        console.error('API Hatası (Domain):', error.message);
+        if (error.response) console.error('Detay:', error.response.data);
         res.status(500).json({ error: 'Domain listesi alınamadı' });
     }
 });
@@ -48,10 +57,11 @@ app.get('/api/inbox', async (req, res) => {
     const [login, domain] = email.split('@');
 
     try {
-        const response = await axios.get(`${BASE_URL}?action=getMessages&login=${login}&domain=${domain}`);
+        const response = await api.get(`?action=getMessages&login=${login}&domain=${domain}`);
         res.json(response.data);
     } catch (error) {
-        console.error('Inbox Hatası:', error.message);
+        console.error('API Hatası (Inbox):', error.message);
+        if (error.response) console.error('Detay:', error.response.data);
         res.status(500).json({ error: 'Mailler alınamadı' });
     }
 });
@@ -66,10 +76,11 @@ app.get('/api/message', async (req, res) => {
     const [login, domain] = email.split('@');
 
     try {
-        const response = await axios.get(`${BASE_URL}?action=readMessage&login=${login}&domain=${domain}&id=${id}`);
+        const response = await api.get(`?action=readMessage&login=${login}&domain=${domain}&id=${id}`);
         res.json(response.data);
     } catch (error) {
-        console.error('Detay Hatası:', error.message);
+        console.error('API Hatası (Message):', error.message);
+        if (error.response) console.error('Detay:', error.response.data);
         res.status(500).json({ error: 'Mail içeriği alınamadı' });
     }
 });
