@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GhostMail | Temp Mail</title>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --card-bg: #161b22;
+            --accent: #58a6ff;
+            --text: #c9d1d9;
+            --border: #30363d;
+            --otp-color: #2ea043;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--accent);
+            letter-spacing: 2px;
+            margin-bottom: 30px;
+        }
+
+        /* Adres Kutusu */
+        .address-box {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 30px;
+            position: relative;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .email-display {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 15px;
+            display: block;
+            word-break: break-all;
+        }
+
+        button {
+            background: var(--accent);
+            border: none;
+            padding: 10px 20px;
+            color: #fff;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin: 5px;
+            transition: 0.2s;
+            font-weight: 600;
+        }
+
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        button.refresh-btn {
+            background: #21262d;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        /* Liste */
+        .mail-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .mail-item {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 10px;
+            padding: 15px;
+            cursor: pointer;
+            transition: 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .mail-item:hover {
+            border-color: var(--accent);
+            transform: translateX(2px);
+        }
+
+        .mail-sender {
+            font-weight: bold;
+            color: #fff;
+            min-width: 150px;
+        }
+
+        .mail-subject {
+            flex-grow: 1;
+            margin: 0 15px;
+            color: #8b949e;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .mail-otp {
+            background: rgba(46, 160, 67, 0.15);
+            color: var(--otp-color);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.9em;
+            border: 1px solid rgba(46, 160, 67, 0.3);
+        }
+
+        /* Modal / Detay */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: var(--card-bg);
+            width: 80%;
+            max-width: 700px;
+            padding: 30px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+        }
+
+        .close-btn {
+            background: transparent;
+            color: #ff7b72;
+            font-size: 1.5rem;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .close-btn:hover {
+            background: transparent;
+            color: #ff5555;
+            transform: none;
+        }
+
+        .otp-big {
+            font-size: 2.5rem;
+            text-align: center;
+            color: var(--otp-color);
+            margin: 25px 0;
+            letter-spacing: 8px;
+            border: 2px dashed var(--otp-color);
+            padding: 15px;
+            background: rgba(46, 160, 67, 0.05);
+            border-radius: 8px;
+        }
+
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            background: #010409;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            color: #e6edf3;
+        }
+
+        /* API Guide Styles */
+        .api-guide {
+            margin-top: 60px;
+            padding-top: 30px;
+            border-top: 1px solid var(--border);
+        }
+
+        .api-endpoint {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+
+        .method {
+            font-weight: bold;
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-right: 12px;
+            font-size: 0.85rem;
+        }
+
+        .get {
+            background: #1f6feb;
+            color: #fff;
+        }
+
+        .url {
+            font-family: 'Consolas', monospace;
+            color: #a5d6ff;
+            font-size: 1.1rem;
+        }
+
+        .code-block {
+            background: #0d1117;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Consolas', monospace;
+            font-size: 0.9rem;
+            color: #e6edf3;
+            overflow-x: auto;
+            border: 1px solid #30363d;
+            line-height: 1.5;
+        }
+
+        /* Header & Toggle Button */
+        .top-bar {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin-bottom: 10px;
+            gap: 10px;
+        }
+
+        .lang-select {
+            background: #0d1117;
+            color: #8b949e;
+            border: 1px solid #30363d;
+            padding: 5px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        .dev-toggle-btn {
+            background: transparent;
+            border: 1px solid #30363d;
+            color: #8b949e;
+            padding: 5px 10px;
+            font-size: 0.85rem;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: 0.2s;
+        }
+
+        .dev-toggle-btn:hover {
+            border-color: #8b949e;
+            color: #c9d1d9;
+        }
+
+        .api-guide {
+            /* Varsayılan Gizli */
+        }
+
+        /* Layout & Ads */
+        .app-wrapper {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            max-width: 1600px;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .ad-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 300px;
+            flex-shrink: 0;
+            margin-top: 80px;
+            /* Ana içerikle hizalamak için biraz aşağı */
+        }
+
+        .ad-box {
+            width: 100%;
+            height: 250px;
+            background: #161b22;
+            border: 1px dashed #30363d;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #8b949e;
+            font-size: 0.9rem;
+            position: relative;
+        }
+
+        .ad-box::after {
+            content: "Reklam Alanı";
+            opacity: 0.5;
+        }
+
+        /* Mobilde reklamları gizle */
+        @media (max-width: 1200px) {
+            .ad-column {
+                display: none;
+            }
+        }
+    </style>
+    <!-- GOOGLE ADSENSE ANA SCRIPT (Bunu bir kere eklemek yeterli) -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3878911468928494"
+        crossorigin="anonymous"></script>
+</head>
+
+<body>
+
+    <div class="app-wrapper">
+        <!-- SOL REKLAM ALANI -->
+        <div class="ad-column">
+            <!-- REKLAM 1 -->
+            <div class="ad-box" style="border:none; background: transparent;">
+                <img src="https://placehold.co/300x250/161b22/8b949e?text=Reklam+Opsiyonu+1\n(Google+Ads+Ready)"
+                    alt="Reklam" style="border-radius:8px; opacity:0.7;">
+            </div>
+
+            <!-- REKLAM 2 -->
+            <div class="ad-box" style="border:none; background: transparent;">
+                <img src="https://placehold.co/300x250/161b22/8b949e?text=Reklam+Opsiyonu+2\n(Waiting+Approval)"
+                    alt="Reklam" style="border-radius:8px; opacity:0.7;">
+            </div>
+        </div>
+
+        <!-- ANA İÇERİK -->
+        <div class="container">
+            <div class="top-bar">
+                <select id="langSelect" class="lang-select" onchange="changeLanguage(this.value)">
+                    <option value="tr">🇹🇷 Türkçe</option>
+                    <option value="en">🇬🇧 English</option>
+                    <option value="de">🇩🇪 Deutsch</option>
+                    <option value="fr">🇫🇷 Français</option>
+                    <option value="es">🇪🇸 Español</option>
+                    <option value="ru">🇷🇺 Русский</option>
+                    <option value="zh">🇨🇳 中文</option>
+                </select>
+                <button class="dev-toggle-btn" onclick="toggleApiGuide()">
+                    <span>&lt;/&gt;</span> <span data-i18n="devMode">Geliştirici Modu</span>
+                </button>
+            </div>
+
+            <h1>👻 GhostMail</h1>
+
+            <div class="address-box">
+                <span id="currentEmail" class="email-display">Mail adresi oluşturuluyor...</span>
+                <div>
+                    <div>
+                        <button onclick="copyEmail()" data-i18n="copy">Kopyala</button>
+                        <button class="refresh-btn" onclick="fetchEmails()"><span data-i18n="refresh">Yenile</span>
+                            ⟳</button>
+                        <button class="refresh-btn" onclick="generateNewEmail()" data-i18n="newAddress">Yeni
+                            Adres</button>
+                        <button class="refresh-btn" onclick="recoverEmail()"
+                            style="color: #e3b341; border-color: #a08430;" data-i18n="recoverEmail">Eski Maili
+                            Aç</button>
+                    </div>
+                </div>
+
+                <h3 style="margin-left: 5px; color: var(--text);"><span data-i18n="inbox">Gelen Kutusu</span> <span
+                        style="font-weight: normal; font-size: 0.8em; color: gray;" data-i18n="autoRefresh">(Otomatik
+                        yenilenir)</span></h3>
+                <ul id="mailList" class="mail-list">
+                    <!-- Mailler buraya gelecek -->
+                </ul>
+
+                <!-- API GUIDE SECTION (ID eklendi) -->
+                <div id="apiGuideDisplay" class="api-guide">
+                    <h2 style="color: var(--text);">👨‍💻 <span data-i18n="apiGuideTitle">Geliştirici API Rehberi</span>
+                    </h2>
+                    <p style="color: #8b949e; margin-bottom: 25px; line-height: 1.6;" data-i18n="apiGuideDesc">GhostMail
+                        sistemini kendi yazılımlarınıza
+                        entegre etmek için aşağıdaki endpointleri kullanabilirsiniz. Sistem tamamen RESTful mantığıyla
+                        çalışır.
+                    </p>
+
+                    <!-- Endpoints -->
+                    <div class="api-endpoint">
+                        <div style="display:flex; justify-content: space-between; align-items: center;">
+                            <div><span class="method get">GET</span> <span class="url">/api/generate</span></div>
+                            <span style="font-size: 0.9rem; color: #8b949e; font-weight: 600;">Mail Oluştur</span>
+                        </div>
+                        <p style="margin-top: 15px; margin-bottom: 5px; color: #c9d1d9;">Yeni ve rastgele bir e-posta
+                            adresi
+                            üretir.</p>
+                        <div class="code-block">
+                            <span style="color: #8b949e;">// Response</span>
+                            {
+                            <span style="color: #7ee787;">"email"</span>: <span
+                                style="color: #a5d6ff;">"x9a2k@ghostmail.com"</span>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="api-endpoint">
+                        <div style="display:flex; justify-content: space-between; align-items: center;">
+                            <div><span class="method get">GET</span> <span class="url">/api/inbox/:email</span></div>
+                            <span style="font-size: 0.9rem; color: #8b949e; font-weight: 600;">Gelen Kutusu</span>
+                        </div>
+                        <p style="margin-top: 15px; margin-bottom: 5px; color: #c9d1d9;">Belirtilen e-posta adresine
+                            gelen
+                            son
+                            mailleri getirir. Alias adresleri de destekler.</p>
+                        <div class="code-block">
+                            <span style="color: #8b949e;">// Example: /api/inbox/x9a2k@ghostmail.com</span>
+
+                            <span style="color: #8b949e;">// Response</span>
+                            [
+                            {
+                            <span style="color: #7ee787;">"id"</span>: <span style="color: #79c0ff;">1</span>,
+                            <span style="color: #7ee787;">"from_address"</span>: <span
+                                style="color: #a5d6ff;">"instagram@mail.com"</span>,
+                            <span style="color: #7ee787;">"subject"</span>: <span style="color: #a5d6ff;">"Verify
+                                Code"</span>,
+                            <span style="color: #7ee787;">"otp_codes"</span>: <span
+                                style="color: #a5d6ff;">"123456"</span>
+                            }
+                            ]
+                        </div>
+                    </div>
+
+                    <div class="api-endpoint">
+                        <div style="display:flex; justify-content: space-between; align-items: center;">
+                            <div><span class="method get">GET</span> <span class="url">/api/email/:id</span></div>
+                            <span style="font-size: 0.9rem; color: #8b949e; font-weight: 600;">Mail Detayı</span>
+                        </div>
+                        <p style="margin-top: 15px; margin-bottom: 5px; color: #c9d1d9;">Bir mailin tüm içeriğini (HTML,
+                            Text ve
+                            ayıklanmış Linkler) getirir.</p>
+                        <div class="code-block">
+                            <span style="color: #8b949e;">// Example: /api/email/5</span>
+
+                            <span style="color: #8b949e;">// Response</span>
+                            {
+                            <span style="color: #7ee787;">"id"</span>: <span style="color: #79c0ff;">5</span>,
+                            <span style="color: #7ee787;">"html_content"</span>: <span
+                                style="color: #a5d6ff;">"&lt;div&gt;...&lt;/div&gt;"</span>,
+                            <span style="color: #7ee787;">"links"</span>: [<span
+                                style="color: #a5d6ff;">"http://example.com"</span>]
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Code Examples -->
+                    <h3
+                        style="margin-top: 50px; border-bottom: 1px solid var(--border); padding-bottom: 15px; color: var(--text);">
+                        ⚡ Hazır Entegrasyon Kodları</h3>
+                    <p style="color: #8b949e; margin-bottom: 25px;">Aşağıdaki kodları kopyalayıp projenize yapıştırın.
+                        Kimlik
+                        doğrulama gerekmez.</p>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px;">
+
+                        <!-- Python Card -->
+                        <div class="api-endpoint" style="margin: 0; display: flex; flex-direction: column;">
+                            <h4
+                                style="margin-top: 0; color: #79c0ff; display: flex; align-items: center; font-size: 1.1rem;">
+                                <span style="font-size: 1.5rem; margin-right: 10px;">🐍</span> Python
+                            </h4>
+                            <div class="code-block"
+                                style="color: #c9d1d9; font-size: 0.85rem; line-height: 1.5; flex-grow: 1;">
+                                <span style="color: #ff7b72;">import</span> requests
+                                <span style="color: #ff7b72;">import</span> time
+
+                                <span style="color: #8b949e;"># 1. Yeni Mail Al</span>
+                                res = requests.get(<span
+                                    style="color: #a5d6ff;">'http://localhost:3000/api/generate'</span>)
+                                email = res.json()[<span style="color: #a5d6ff;">'email'</span>]
+                                <span style="color: #d2a8ff;">print</span>(f<span style="color: #a5d6ff;">"Mail Hesabın:
+                                    {email}"</span>)
+
+                                <span style="color: #8b949e;"># 2. Maili Bekle</span>
+                                <span style="color: #d2a8ff;">print</span>(<span style="color: #a5d6ff;">"Mail
+                                    bekleniyor..."</span>)
+                                <span style="color: #ff7b72;">while</span> <span style="color: #79c0ff;">True</span>:
+                                inbox = requests.get(f<span
+                                    style="color: #a5d6ff;">'http://localhost:3000/api/inbox/{email}'</span>).json()
+                                <span style="color: #ff7b72;">if</span> inbox:
+                                code = inbox[<span style="color: #79c0ff;">0</span>][<span
+                                    style="color: #a5d6ff;">'otp_codes'</span>]
+                                <span style="color: #d2a8ff;">print</span>(f<span style="color: #a5d6ff;">"🚀 ONAY KODU
+                                    GELDİ:
+                                    {code}"</span>)
+                                <span style="color: #ff7b72;">break</span>
+                                time.sleep(<span style="color: #79c0ff;">2</span>)
+                            </div>
+                        </div>
+
+                        <!-- Node.js Card -->
+                        <div class="api-endpoint" style="margin: 0; display: flex; flex-direction: column;">
+                            <h4
+                                style="margin-top: 0; color: #f1e05a; display: flex; align-items: center; font-size: 1.1rem;">
+                                <span style="font-size: 1.5rem; margin-right: 10px;">📦</span> Node.js
+                            </h4>
+                            <div class="code-block"
+                                style="color: #c9d1d9; font-size: 0.85rem; line-height: 1.5; flex-grow: 1;">
+                                <span style="color: #ff7b72;">const</span> axios = require(<span
+                                    style="color: #a5d6ff;">'axios'</span>);
+
+                                <span style="color: #ff7b72;">async function</span> <span
+                                    style="color: #d2a8ff;">main</span>()
+                                {
+                                <span style="color: #8b949e;">// 1. Yeni Mail Al</span>
+                                <span style="color: #ff7b72;">const</span> { data } = <span
+                                    style="color: #ff7b72;">await</span>
+                                axios.get(<span style="color: #a5d6ff;">'http://localhost:3000/api/generate'</span>);
+                                console.log(<span style="color: #a5d6ff;">`Mail Hesabın: ${data.email}`</span>);
+
+                                <span style="color: #8b949e;">// 2. Maili Bekle</span>
+                                console.log(<span style="color: #a5d6ff;">"Mail bekleniyor..."</span>);
+                                setInterval(<span style="color: #ff7b72;">async</span> () => {
+                                <span style="color: #ff7b72;">const</span> inbox = <span
+                                    style="color: #ff7b72;">await</span>
+                                axios.get(<span
+                                    style="color: #a5d6ff;">`http://localhost:3000/api/inbox/${data.email}`</span>);
+                                <span style="color: #ff7b72;">if</span>(inbox.data.length > <span
+                                    style="color: #79c0ff;">0</span>) {
+                                <span style="color: #ff7b72;">const</span> code = inbox.data[<span
+                                    style="color: #79c0ff;">0</span>].otp_codes;
+                                console.log(<span style="color: #a5d6ff;">`🚀 ONAY KODU GELDİ: ${code}`</span>);
+                                process.exit();
+                                }
+                                }, <span style="color: #79c0ff;">2000</span>);
+                                }
+                                main();
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DETAY MODALI -->
+            <div id="detailModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 id="modalSubject">Konu</h2>
+                        <button class="close-btn" onclick="closeModal()">✕</button>
+                    </div>
+                    <div id="modalOTP" style="display:none;" class="otp-big"></div>
+                    <div id="modalBody"></div>
+                    <h4 style="margin-top: 20px; color: var(--accent);">Bulunan Linkler:</h4>
+                    <ul id="modalLinks"></ul>
+                </div>
+            </div>
+
+            <script>
+                // Dil Tanımları
+                const translations = {
+                    tr: {
+                        devMode: "Geliştirici Modu",
+                        creating: "Mail adresi oluşturuluyor...",
+                        copy: "Kopyala",
+                        refresh: "Yenile",
+                        newAddress: "Yeni Adres",
+                        recoverEmail: "Eski Maili Aç",
+                        inbox: "Gelen Kutusu",
+                        autoRefresh: "(Otomatik yenilenir)",
+                        apiGuideTitle: "Geliştirici API Rehberi",
+                        apiGuideDesc: "GhostMail sistemini kendi yazılımlarınıza entegre etmek için aşağıdaki endpointleri kullanabilirsiniz. Sistem tamamen RESTful mantığıyla çalışır.",
+                        linksFound: "Bulunan Linkler:",
+                        emptyInbox: "Henüz mail yok...",
+                        promptRecover: "Açmak istediğiniz mail adresini (veya sadece adını) girin:",
+                        alertCopied: "Kopyalandı: "
+                    },
+                    en: {
+                        devMode: "Developer Mode",
+                        creating: "Creating email address...",
+                        copy: "Copy",
+                        refresh: "Refresh",
+                        newAddress: "New Address",
+                        recoverEmail: "Recover Email",
+                        inbox: "Inbox",
+                        autoRefresh: "(Auto refreshing)",
+                        apiGuideTitle: "Developer API Guide",
+                        apiGuideDesc: "You can use the following endpoints to integrate GhostMail into your software. The system works entirely on RESTful logic.",
+                        linksFound: "Found Links:",
+                        emptyInbox: "No mails yet...",
+                        promptRecover: "Enter the email address (or just the name) you want to open:",
+                        alertCopied: "Copied: "
+                    },
+                    de: {
+                        devMode: "Entwicklermodus",
+                        creating: "E-Mail-Adresse wird erstellt...",
+                        copy: "Kopieren",
+                        refresh: "Aktualisieren",
+                        newAddress: "Neue Adresse",
+                        recoverEmail: "E-Mail wiederherstellen",
+                        inbox: "Posteingang",
+                        autoRefresh: "(Auto-Aktualisierung)",
+                        apiGuideTitle: "Entwickler-API-Handbuch",
+                        apiGuideDesc: "Sie können die folgenden Endpunkte verwenden, um GhostMail in Ihre Software zu integrieren. RESTful-Logik.",
+                        linksFound: "Gefundene Links:",
+                        emptyInbox: "Noch keine E-Mails...",
+                        promptRecover: "Geben Sie die E-Mail-Adresse (oder nur den Namen) ein:",
+                        alertCopied: "Kopiert: "
+                    },
+                    fr: {
+                        devMode: "Mode Développeur",
+                        creating: "Création de l'adresse email...",
+                        copy: "Copier",
+                        refresh: "Actualiser",
+                        newAddress: "Nouvelle Adresse",
+                        recoverEmail: "Récupérer Email",
+                        inbox: "Boîte de réception",
+                        autoRefresh: "(Actualisation auto)",
+                        apiGuideTitle: "Guide API Développeur",
+                        apiGuideDesc: "Vous pouvez utiliser les endpoints suivants pour intégrer GhostMail. Logique RESTful.",
+                        linksFound: "Liens trouvés :",
+                        emptyInbox: "Pas encore de mails...",
+                        promptRecover: "Entrez l'adresse email (ou juste le nom) à ouvrir :",
+                        alertCopied: "Copié : "
+                    },
+                    es: {
+                        devMode: "Modo Desarrollador",
+                        creating: "Creando dirección de correo...",
+                        copy: "Copiar",
+                        refresh: "Actualizar",
+                        newAddress: "Nueva Dirección",
+                        recoverEmail: "Recuperar Correo",
+                        inbox: "Bandeja de Entrada",
+                        autoRefresh: "(Auto actualización)",
+                        apiGuideTitle: "Guía API Desarrollador",
+                        apiGuideDesc: "Puede utilizar los siguientes endpoints para integrar GhostMail. Lógica RESTful.",
+                        linksFound: "Enlaces encontrados:",
+                        emptyInbox: "Aún no hay correos...",
+                        promptRecover: "Ingrese la dirección de correo (o solo el nombre):",
+                        alertCopied: "Copiado: "
+                    },
+                    ru: {
+                        devMode: "Режим разработчика",
+                        creating: "Создание адреса электронной почты...",
+                        copy: "Копировать",
+                        refresh: "Обновить",
+                        newAddress: "Новый адрес",
+                        recoverEmail: "Восстановить",
+                        inbox: "Входящие",
+                        autoRefresh: "(Автообновление)",
+                        apiGuideTitle: "Руководство API",
+                        apiGuideDesc: "Используйте следующие эндпоинты для интеграции GhostMail. RESTful API.",
+                        linksFound: "Найденные ссылки:",
+                        emptyInbox: "Писем пока нет...",
+                        promptRecover: "Введите адрес электронной почты (или имя):",
+                        alertCopied: "Скопировано: "
+                    },
+                    zh: {
+                        devMode: "开发者模式",
+                        creating: "正在创建电子邮件地址...",
+                        copy: "复制",
+                        refresh: "刷新",
+                        newAddress: "新地址",
+                        recoverEmail: "恢复邮件",
+                        inbox: "收件箱",
+                        autoRefresh: "(自动刷新)",
+                        apiGuideTitle: "开发者 API 指南",
+                        apiGuideDesc: "您可以使用以下端点将 GhostMail 集成到您的软件中。完全基于 RESTful 逻辑。",
+                        linksFound: "找到的链接：",
+                        emptyInbox: "暂无邮件...",
+                        promptRecover: "输入您要打开的电子邮件地址（或仅输入名称）：",
+                        alertCopied: "已复制："
+                    }
+                };
+
+                let currentLang = localStorage.getItem('ghostLang') || 'tr';
+
+                // Dil Değiştirme Fonksiyonu
+                function changeLanguage(lang) {
+                    currentLang = lang;
+                    localStorage.setItem('ghostLang', lang);
+                    document.getElementById('langSelect').value = lang;
+
+                    const texts = translations[lang];
+
+                    document.querySelectorAll('[data-i18n]').forEach(el => {
+                        const key = el.getAttribute('data-i18n');
+                        if (texts[key]) el.innerText = texts[key];
+                    });
+
+                    // Özel durumlar (JS içindeki metinler için UI güncellemesi)
+                    const listEl = document.getElementById('mailList');
+                    if (listEl.innerHTML.includes('Henüz mail yok...') || listEl.innerHTML.includes('No mails yet...')) {
+                        listEl.innerHTML = `<div style="text-align:center; padding:20px; color:#555;">${texts.emptyInbox}</div>`;
+                    }
+                    document.querySelector('#detailModal h4').innerText = texts.linksFound;
+                }
+
+                let myEmail = localStorage.getItem('ghostEmail');
+
+                // Başlangıç: Mail yoksa oluştur
+                if (!myEmail) {
+                    generateNewEmail();
+                } else {
+                    document.getElementById('currentEmail').innerText = myEmail;
+                    fetchEmails();
+                    startAutoRefresh();
+                }
+
+                // Sayfa yüklendiğinde dili ayarla
+                changeLanguage(currentLang);
+
+                async function generateNewEmail() {
+                    const res = await fetch('/api/generate');
+                    const data = await res.json();
+                    myEmail = data.email;
+                    saveAndRender(myEmail);
+                }
+
+                function recoverEmail() {
+                    const input = prompt(translations[currentLang].promptRecover, "");
+                    if (!input) return;
+
+                    let newMail = input.trim();
+                    // Eğer @ işareti yoksa domaini biz ekleyelim
+                    if (!newMail.includes('@')) {
+                        newMail += '@ghostmail.com';
+                    }
+
+                    saveAndRender(newMail);
+                }
+
+                function saveAndRender(email) {
+                    myEmail = email;
+                    localStorage.setItem('ghostEmail', myEmail);
+                    document.getElementById('currentEmail').innerText = myEmail;
+                    document.getElementById('mailList').innerHTML = ''; // Listeyi temizle
+                    fetchEmails();
+                }
+
+                function copyEmail() {
+                    navigator.clipboard.writeText(myEmail);
+                    alert(translations[currentLang].alertCopied + myEmail);
+                }
+
+                async function fetchEmails() {
+                    if (!myEmail) return;
+                    try {
+                        const res = await fetch(`/api/inbox/${myEmail}`);
+                        const emails = await res.json();
+                        renderList(emails);
+                    } catch (e) { console.error(e); }
+                }
+
+                function renderList(emails) {
+                    const listEl = document.getElementById('mailList');
+                    // Sadece yeni mail varsa güncelleme yapılabilir ama şimdilik düz basıyoruz
+                    listEl.innerHTML = emails.map(mail => `
+            <li class="mail-item" onclick="openMail(${mail.id})">
+                <span class="mail-sender">${mail.from_address}</span>
+                <span class="mail-subject">${mail.subject}</span>
+                ${mail.otp_codes ? `<span class="mail-otp">${mail.otp_codes}</span>` : ''}
+            </li>
+        `).join('') || `<div style="text-align:center; padding:20px; color:#555;">${translations[currentLang].emptyInbox}</div>`;
+                }
+
+                async function openMail(id) {
+                    const res = await fetch(`/api/email/${id}`);
+                    const mail = await res.json();
+
+                    document.getElementById('modalSubject').innerText = mail.subject;
+                    document.getElementById('modalBody').innerHTML = mail.html_content || `<pre>${mail.text_content}</pre>`;
+
+                    // OTP Göster
+                    const otpEl = document.getElementById('modalOTP');
+                    if (mail.otp_codes) {
+                        otpEl.innerText = mail.otp_codes;
+                        otpEl.style.display = 'block';
+                    } else {
+                        otpEl.style.display = 'none';
+                    }
+
+                    // Linkleri Listele
+                    const linksEl = document.getElementById('modalLinks');
+                    const links = JSON.parse(mail.links || '[]');
+                    if (links.length > 0) {
+                        linksEl.innerHTML = links.map(l => `<li><a href="${l}" target="_blank" style="color:var(--accent); text-decoration: none;">${l}</a></li>`).join('');
+                    } else {
+                        linksEl.innerHTML = '<li style="color: gray;">Link bulunamadı.</li>';
+                    }
+
+                    document.getElementById('detailModal').style.display = 'flex';
+                }
+
+                function closeModal() {
+                    document.getElementById('detailModal').style.display = 'none';
+                }
+
+                function toggleApiGuide() {
+                    const guide = document.getElementById('apiGuideDisplay');
+                    if (guide.style.display === 'block') {
+                        guide.style.display = 'none';
+                    } else {
+                        guide.style.display = 'block';
+                        guide.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+
+                // Her 3 saniyede bir kontrol
+                function startAutoRefresh() {
+                    setInterval(fetchEmails, 3000);
+                }
+
+                // Auto start
+                startAutoRefresh();
+
+            </script>
+
+            <!-- SAĞ REKLAM ALANI -->
+        </div> <!-- Container Bitiş -->
+
+        <div class="ad-column">
+            <!-- REKLAM 3 -->
+            <div class="ad-box" style="border:none; background: transparent;">
+                <img src="https://placehold.co/300x250/161b22/8b949e?text=Reklam+Opsiyonu+3\n(Google+Ads+Ready)"
+                    alt="Reklam" style="border-radius:8px; opacity:0.7;">
+            </div>
+
+            <!-- REKLAM 4 -->
+            <div class="ad-box" style="border:none; background: transparent;">
+                <img src="https://placehold.co/300x250/161b22/8b949e?text=Reklam+Opsiyonu+4\n(Waiting+Approval)"
+                    alt="Reklam" style="border-radius:8px; opacity:0.7;">
+            </div>
+        </div>
+    </div> <!-- App Wrapper Bitiş -->
+
+</body>
+
+</html>
