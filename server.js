@@ -1,153 +1,80 @@
 const express = require('express');
-const { SMTPServer } = require('smtp-server');
-const { simpleParser } = require('mailparser');
-const sqlite3 = require('sqlite3').verbose();
+const axios = require('axios'); // API istekleri için
 const cors = require('cors');
 const path = require('path');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
 // --- KONFIGÜRASYON ---
-// Kullanılabilecek Domainler Listesi
-const DOMAINS = [
-    'ghostmail.com',
-    'ghostmail.com', // .com ağırlıklı olsun diye iki kere ekledim
-    'fastinbox.com',
-    'secureline.com',
-    'ghostdrop.net',
-    'privatemail.live'
-];
 const API_PORT = 3000;
-const SMTP_PORT = 2525; // Normalde 25 olur ama localde izin vermeyebilirler, test için 2525
-
-// --- VERİTABANI KURULUMU ---
-const db = new sqlite3.Database(':memory:'); // Test için RAM'de tutuyoruz.
-
-db.serialize(() => {
-    db.run(`CREATE TABLE emails (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        to_address TEXT,
-        from_address TEXT,
-        subject TEXT,
-        text_content TEXT,
-        html_content TEXT,
-        otp_codes TEXT,
-        links TEXT,
-        received_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
-});
+const BASE_URL = 'https://www.1secmail.com/api/v1/';
 
 // --- GÜVENLİK VE LİMİTLEME ---
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 dakika
-    max: 100, // IP başına limit
+    windowMs: 1 * 60 * 1000, // 1 dakika
+    max: 200, // Biraz daha esnek, çünkü frontend sık polling yapıyor
     standardHeaders: true,
     legacyHeaders: false,
 });
 
-// --- YARDIMCI FONKSİYONLAR ---
-function extractOTP(text) {
-    if (!text) return null;
-    // 4 ile 8 basamaklı sayıları arar. Genelde OTP'ler böyledir.
-    const regex = /\b\d{4,8}\b/g;
-    const matches = text.match(regex);
-    return matches ? matches.join(', ') : null;
-}
-
-function extractLinks(text) {
-    if (!text) return null;
-    const regex = /(https?:\/\/[^\s]+)/g;
-    const matches = text.match(regex);
-    return matches ? matches : [];
-}
-
-// Otomatik Temizlik (Her 5 dakikada bir, 1 saatten eski mailleri sil)
-setInterval(() => {
-    db.run("DELETE FROM emails WHERE received_at < datetime('now', '-1 hour')", function (err) {
-        if (!err && this.changes > 0) {
-            console.log(`🧹 Temizlik: ${this.changes} eski mail silindi.`);
-        }
-    });
-}, 5 * 60 * 1000);
-
-// --- SMTP SUNUCUSU (Mail Alma Kısmı) ---
-const mailServer = new SMTPServer({
-    authOptional: true, // Herkes mail atabilsin diye
-    onData(stream, session, callback) {
-        simpleParser(stream, (err, parsed) => {
-            if (err) {
-                console.error('Mail parse hatası:', err);
-                return callback(err);
-            }
-
-            const toAddress = parsed.to && parsed.to.text ? parsed.to.text : 'unknown';
-            const fromAddress = parsed.from && parsed.from.text ? parsed.from.text : 'unknown';
-            const subject = parsed.subject;
-            const textContent = parsed.text;
-            const htmlContent = parsed.html;
-
-            // OTP ve Link Bulma
-            const otpCodes = extractOTP(textContent || htmlContent);
-            const links = extractLinks(textContent || htmlContent);
-
-            console.log(`📥 YENİ MAIL GELDİ! -> Kime: ${toAddress}`);
-
-            const stmt = db.prepare(`INSERT INTO emails (to_address, from_address, subject, text_content, html_content, otp_codes, links) VALUES (?, ?, ?, ?, ?, ?, ?)`);
-            stmt.run(toAddress, fromAddress, subject, textContent, htmlContent, otpCodes, JSON.stringify(links));
-            stmt.finalize();
-
-            callback();
-        });
-    }
-});
-
-mailServer.listen(SMTP_PORT, () => {
-    console.log(`📧 SMTP Sunucusu çalışıyor: port ${SMTP_PORT}`);
-});
-
-
-// --- WEB API SUNUCUSU (Frontend ve API) ---
+// --- WEB API SUNUCUSU ---
 const app = express();
+
 app.use(helmet({
-    contentSecurityPolicy: false, // AdSense scriptlerinin çalışması için CSP kapatıldı veya ayarlanmalı. Şimdilik kapattık.
+    contentSecurityPolicy: false, // AdSense için kapalı
 }));
 app.use(cors());
 app.use(limiter);
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Rastgele Mail Üret (Random Domain Seçimi)
-app.get('/api/generate', (req, res) => {
-    const randomPart = Math.random().toString(36).substring(2, 10);
-    const randomDomain = DOMAINS[Math.floor(Math.random() * DOMAINS.length)];
-    const email = `${randomPart}@${randomDomain}`;
-    res.json({ email: email });
+// 1. Mevcut Domainleri Getir
+app.get('/api/domains', async (req, res) => {
+    try {
+        const response = await axios.get(`${BASE_URL}?action=getDomainList`);
+        res.json(response.data);
+    } catch (error) {
+        console.error('API Hatası:', error.message);
+        res.status(500).json({ error: 'Domain listesi alınamadı' });
+    }
 });
 
-// Gelen Kutusunu Oku (Belirli bir mail adresi için)
-app.get('/api/inbox/:email', (req, res) => {
-    const email = req.params.email;
-    // Basit bir LIKE sorgusu yapıyoruz ki alias'ları da yakalayabilelim
-    db.all("SELECT id, from_address, subject, otp_codes, received_at FROM emails WHERE to_address LIKE ? ORDER BY id DESC", [`%${email}%`], (err, rows) => {
-        if (err) {
-            res.status(500).json({ error: err.message });
-            return;
-        }
-        res.json(rows);
-    });
+// 2. Gelen Kutusunu Getir
+app.get('/api/inbox', async (req, res) => {
+    const { email } = req.query;
+    if (!email || !email.includes('@')) {
+        return res.status(400).json({ error: 'Geçersiz email' });
+    }
+
+    const [login, domain] = email.split('@');
+
+    try {
+        const response = await axios.get(`${BASE_URL}?action=getMessages&login=${login}&domain=${domain}`);
+        res.json(response.data);
+    } catch (error) {
+        console.error('Inbox Hatası:', error.message);
+        res.status(500).json({ error: 'Mailler alınamadı' });
+    }
 });
 
-// Mail Detayını Oku
-app.get('/api/email/:id', (req, res) => {
-    const id = req.params.id;
-    db.get("SELECT * FROM emails WHERE id = ?", [id], (err, row) => {
-        if (err) {
-            res.status(500).json({ error: err.message });
-            return;
-        }
-        res.json(row);
-    });
+// 3. Tekil Maili Oku
+app.get('/api/message', async (req, res) => {
+    const { email, id } = req.query;
+    if (!email || !id) {
+        return res.status(400).json({ error: 'Eksik parametre' });
+    }
+
+    const [login, domain] = email.split('@');
+
+    try {
+        const response = await axios.get(`${BASE_URL}?action=readMessage&login=${login}&domain=${domain}&id=${id}`);
+        res.json(response.data);
+    } catch (error) {
+        console.error('Detay Hatası:', error.message);
+        res.status(500).json({ error: 'Mail içeriği alınamadı' });
+    }
 });
 
 app.listen(API_PORT, () => {
-    console.log(`🌐 Web Arayüzü & API çalışıyor: http://localhost:${API_PORT}`);
+    console.log(`🚀 GERÇEK Mail Servisi Çalışıyor: http://localhost:${API_PORT}`);
+    console.log(`🌍 Altyapı: 1secmail API`);
 });

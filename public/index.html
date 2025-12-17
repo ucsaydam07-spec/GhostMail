@@ -435,6 +435,12 @@
 
             <div class="address-box">
                 <span id="currentEmail" class="email-display">Mail adresi oluşturuluyor...</span>
+                <div style="margin-bottom: 15px;">
+                    <select id="domainSelect"
+                        style="padding: 8px; border-radius: 6px; background: #21262d; color: #c9d1d9; border: 1px solid #30363d;">
+                        <option value="" disabled selected>Domain Yükleniyor...</option>
+                    </select>
+                </div>
                 <div>
                     <div>
                         <button onclick="copyEmail()" data-i18n="copy">Kopyala</button>
@@ -788,23 +794,81 @@
                 // Sayfa yüklendiğinde dili ayarla
                 changeLanguage(currentLang);
 
-                async function generateNewEmail() {
-                    const res = await fetch('/api/generate');
-                    const data = await res.json();
-                    myEmail = data.email;
-                    saveAndRender(myEmail);
+                // --- YARDIMCI: OTP ÇIKARTICI ---
+                function extractOTP(text) {
+                    if (!text) return null;
+                    const regex = /\b\d{4,8}\b/g;
+                    const matches = text.match(regex);
+                    return matches ? matches[0] : null;
                 }
+
+                // Domainleri yükle ve Select kutusuna koy
+                async function initDomains() {
+                    try {
+                        const res = await fetch('/api/domains');
+                        const domains = await res.json();
+                        const select = document.getElementById('domainSelect');
+
+                        select.innerHTML = domains.map(d => `<option value="${d}">@${d}</option>`).join('');
+
+                        // İlk açılışta rastgele bir tane seç
+                        const randomDomain = domains[Math.floor(Math.random() * domains.length)];
+                        select.value = randomDomain;
+
+                        // Domainler yüklendikten sonra mail oluştur
+                        if (!localStorage.getItem('ghostEmail')) {
+                            generateNewEmail();
+                        } else {
+                            // Eğer mail varsa, domaini de seçili hale getir
+                            const currentDomain = myEmail.split('@')[1];
+                            if (domains.includes(currentDomain)) {
+                                select.value = currentDomain;
+                            } else if (domains.length > 0) {
+                                select.value = domains[0]; // Fallback to first domain if current is not in list
+                            }
+                        }
+                    } catch (e) { console.error("Domain hatası", e); }
+                }
+
+                async function generateNewEmail() {
+                    try {
+                        const loadingText = translations[currentLang].creating || "Creating...";
+                        document.getElementById('currentEmail').innerText = loadingText;
+
+                        const select = document.getElementById('domainSelect');
+                        // Eğer select boşsa (henüz yüklenmediyse) bekle
+                        if (select.options.length === 0 || select.value === "") {
+                            await initDomains();
+                        }
+
+                        const selectedDomain = select.value;
+                        const randomUser = Math.random().toString(36).substring(2, 10);
+
+                        myEmail = `${randomUser}@${selectedDomain}`;
+                        saveAndRender(myEmail);
+                    } catch (e) {
+                        console.error(e);
+                        alert("Mail oluşturulamadı, lütfen tekrar dene.");
+                    }
+                }
+
+                // Başlangıç
+                initDomains();
 
                 function recoverEmail() {
                     const input = prompt(translations[currentLang].promptRecover, "");
                     if (!input) return;
 
                     let newMail = input.trim();
-                    // Eğer @ işareti yoksa domaini biz ekleyelim
+                    // Kullanıcı domain girmediyse varsayılan bir domain uyduramayız (çünkü 1secmail sadece belirli domainleri kabul eder)
+                    // O yüzden kullanıcıya uyarı vermek daha doğru veya en popüler domaini ekleyebiliriz.
+                    // Şimdilik basit tutalım, eğer domain yoksa varsayılan domainlerden ilkiyle deneyelim.
                     if (!newMail.includes('@')) {
-                        newMail += '@ghostmail.com';
+                        // Basit bir fetch ile domain listesini alıp ilkini ekleyebiliriz ama 
+                        // senkronizasyon için şimdilik manuel recover'da tam adres istemek daha iyi.
+                        alert("Lütfen tam mail adresini girin (örnek: abc@1secmail.com)");
+                        return;
                     }
-
                     saveAndRender(newMail);
                 }
 
@@ -824,7 +888,7 @@
                 async function fetchEmails() {
                     if (!myEmail) return;
                     try {
-                        const res = await fetch(`/api/inbox/${myEmail}`);
+                        const res = await fetch(`/api/inbox?email=${myEmail}`);
                         const emails = await res.json();
                         renderList(emails);
                     } catch (e) { console.error(e); }
@@ -832,42 +896,59 @@
 
                 function renderList(emails) {
                     const listEl = document.getElementById('mailList');
-                    // Sadece yeni mail varsa güncelleme yapılabilir ama şimdilik düz basıyoruz
+
+                    if (!emails || emails.length === 0) {
+                        listEl.innerHTML = `<div style="text-align:center; padding:20px; color:#555;">${translations[currentLang].emptyInbox}</div>`;
+                        return;
+                    }
+
+                    // 1secmail data format: { id, from, subject, date }
                     listEl.innerHTML = emails.map(mail => `
             <li class="mail-item" onclick="openMail(${mail.id})">
-                <span class="mail-sender">${mail.from_address}</span>
+                <span class="mail-sender">${mail.from}</span>
                 <span class="mail-subject">${mail.subject}</span>
-                ${mail.otp_codes ? `<span class="mail-otp">${mail.otp_codes}</span>` : ''}
+                <span class="mail-otp" style="font-weight:normal; font-size:0.8em; color:gray;">${mail.date}</span>
             </li>
-        `).join('') || `<div style="text-align:center; padding:20px; color:#555;">${translations[currentLang].emptyInbox}</div>`;
+        `).join('');
                 }
 
                 async function openMail(id) {
-                    const res = await fetch(`/api/email/${id}`);
-                    const mail = await res.json();
+                    try {
+                        const res = await fetch(`/api/message?email=${myEmail}&id=${id}`);
+                        const mail = await res.json();
 
-                    document.getElementById('modalSubject').innerText = mail.subject;
-                    document.getElementById('modalBody').innerHTML = mail.html_content || `<pre>${mail.text_content}</pre>`;
+                        document.getElementById('modalSubject').innerText = mail.subject;
 
-                    // OTP Göster
-                    const otpEl = document.getElementById('modalOTP');
-                    if (mail.otp_codes) {
-                        otpEl.innerText = mail.otp_codes;
-                        otpEl.style.display = 'block';
-                    } else {
-                        otpEl.style.display = 'none';
+                        // İçerik (HTML öncelikli)
+                        const content = mail.htmlBody || mail.body || mail.textBody;
+                        document.getElementById('modalBody').innerHTML = content;
+
+                        // OTP ve Link Bulma (Client-side)
+                        const otp = extractOTP(mail.textBody || mail.body);
+                        const otpEl = document.getElementById('modalOTP');
+                        if (otp) {
+                            otpEl.innerText = otp;
+                            otpEl.style.display = 'block';
+                        } else {
+                            otpEl.style.display = 'none';
+                        }
+
+                        // Link bulma (Basit regex ile)
+                        const linkRegex = /(https?:\/\/[^\s]+)/g;
+                        const links = (mail.textBody || mail.body).match(linkRegex) || [];
+                        const linksEl = document.getElementById('modalLinks');
+
+                        if (links.length > 0) {
+                            linksEl.innerHTML = links.map(l => `<li><a href="${l}" target="_blank" style="color:var(--accent); text-decoration: none;">${l}</a></li>`).join('');
+                        } else {
+                            linksEl.innerHTML = '<li style="color: gray;">Link bulunamadı.</li>';
+                        }
+
+                        document.getElementById('detailModal').style.display = 'flex';
+                    } catch (e) {
+                        console.error(e);
+                        alert("Mail açılırken hata oluştu.");
                     }
-
-                    // Linkleri Listele
-                    const linksEl = document.getElementById('modalLinks');
-                    const links = JSON.parse(mail.links || '[]');
-                    if (links.length > 0) {
-                        linksEl.innerHTML = links.map(l => `<li><a href="${l}" target="_blank" style="color:var(--accent); text-decoration: none;">${l}</a></li>`).join('');
-                    } else {
-                        linksEl.innerHTML = '<li style="color: gray;">Link bulunamadı.</li>';
-                    }
-
-                    document.getElementById('detailModal').style.display = 'flex';
                 }
 
                 function closeModal() {
@@ -875,18 +956,8 @@
                 }
 
                 function toggleApiGuide() {
-                    // Şimdilik devre dışı (Sunum/İlk aşama için)
+                    // ...
                     return;
-
-                    /* Aktif etmek istersen burayı aç:
-                    const guide = document.getElementById('apiGuideDisplay');
-                    if (guide.style.display === 'block') {
-                        guide.style.display = 'none';
-                    } else {
-                        guide.style.display = 'block';
-                        guide.scrollIntoView({ behavior: 'smooth' });
-                    }
-                    */
                 }
 
                 // Her 3 saniyede bir kontrol
